@@ -2,15 +2,49 @@ const pdfParse = require('pdf-parse');
 const fs = require('fs');
 
 /**
+ * Extract and parse tabular data from PDF buffer (Vercel serverless compatible)
+ */
+async function parsePdfReportFromBuffer(dataBuffer) {
+  try {
+    const data = await pdfParse(dataBuffer);
+    return processPdfText(data.text);
+  } catch (error) {
+    console.error('PDF Parsing Error:', error);
+    return {
+      success: false,
+      message: `Error parsing PDF: ${error.message}`,
+      error: error.message,
+      sectors: [],
+      grandTotals: { totalMurukulu: 0, totalBalamrutham: 0, totalItems: 0 }
+    };
+  }
+}
+
+/**
  * Extract and parse tabular data from government-style PDF reports
  * Handles: Sector Name, AWC Name, Murukulu Indent, Balamrutham Indent
  */
 async function parsePdfReport(filePath) {
   try {
     const dataBuffer = fs.readFileSync(filePath);
-    const data = await pdfParse(dataBuffer);
-    const text = data.text;
+    return parsePdfReportFromBuffer(dataBuffer);
+  } catch (error) {
+    console.error('PDF Parsing Error:', error);
+    return {
+      success: false,
+      message: `Error parsing PDF: ${error.message}`,
+      error: error.message,
+      sectors: [],
+      grandTotals: { totalMurukulu: 0, totalBalamrutham: 0, totalItems: 0 }
+    };
+  }
+}
 
+/**
+ * Process extracted PDF text and return structured data
+ */
+function processPdfText(text) {
+  try {
     // Split into lines and clean
     const lines = text
       .split('\n')
@@ -76,10 +110,10 @@ async function parsePdfReport(filePath) {
       message: `Successfully parsed ${allRows.length} rows from PDF`
     };
   } catch (error) {
-    console.error('PDF Parsing Error:', error);
+    console.error('Text Processing Error:', error);
     return {
       success: false,
-      message: `Error parsing PDF: ${error.message}`,
+      message: `Error processing PDF text: ${error.message}`,
       error: error.message,
       sectors: [],
       grandTotals: { totalMurukulu: 0, totalBalamrutham: 0, totalItems: 0 }
@@ -210,4 +244,4 @@ function validateRow(row) {
   );
 }
 
-module.exports = { parsePdfReport };
+module.exports = { parsePdfReport, parsePdfReportFromBuffer };

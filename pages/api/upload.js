@@ -1,7 +1,8 @@
 const formidable = require('formidable');
 const fs = require('fs');
 const path = require('path');
-const { parsePdfReport } = require('../../utils/parsePdf');
+const os = require('os');
+const { parsePdfReportFromBuffer } = require('../../utils/parsePdf');
 
 export const config = { 
   api: { 
@@ -16,11 +17,19 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  let uploadedFile = null;
+  
   try {
-    // Create temp directory if it doesn't exist
-    const tempDir = path.join(process.cwd(), 'tmp');
-    if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true });
+    // Use system temp directory or fallback
+    let tempDir;
+    try {
+      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pdf-upload-'));
+    } catch (e) {
+      // If system temp fails, try current directory
+      tempDir = path.join(process.cwd(), '.tmp');
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
     }
 
     // Parse form with file
@@ -32,48 +41,81 @@ export default async function handler(req, res) {
     });
 
     form.parse(req, async (err, fields, files) => {
-      if (err) {
-        console.error('Form parse error:', err);
-        return res.status(400).json({ 
-          success: false,
-          error: 'File upload failed',
-          message: err.message 
-        });
-      }
-
-      if (!files.file) {
-        return res.status(400).json({ 
-          success: false,
-          error: 'No file uploaded' 
-        });
-      }
-
-      const uploadedFile = Array.isArray(files.file) ? files.file[0] : files.file;
-
-      // Validate file type
-      if (!uploadedFile.mimetype.includes('pdf') && !uploadedFile.originalFilename.endsWith('.pdf')) {
-        fs.unlinkSync(uploadedFile.filepath);
-        return res.status(400).json({ 
-          success: false,
-          error: 'Invalid file type. Please upload a PDF file.' 
-        });
-      }
-
       try {
-        // Parse PDF
-        const result = await parsePdfReport(uploadedFile.filepath);
+        if (err) {
+          console.error('Form parse error:', err);
+          return res.status(400).json({ 
+            success: false,
+            error: 'File upload failed',
+            message: err.message 
+          });
+        }
 
-        // Clean up temp file
-        fs.unlinkSync(uploadedFile.filepath);
+        if (!files.file) {
+          return res.status(400).json({ 
+            success: false,
+            error: 'No file uploaded' 
+          });
+        }
 
-        res.status(200).json(result);
-      } catch (parseError) {
-        console.error('PDF parse error:', parseError);
-        fs.unlinkSync(uploadedFile.filepath);
+        uploadedFile = Array.isArray(files.file) ? files.file[0] : files.file;
+
+        // Validate file type
+        if (!uploadedFile.mimetype.includes('pdf') && !uploadedFile.originalFilename.endsWith('.pdf')) {
+          try {
+            fs.unlinkSync(uploadedFile.filepath);
+          } catch (e) {
+            console.error('Error deleting file:', e);
+          }
+          return res.status(400).json({ 
+            success: false,
+            error: 'Invalid file type. Please upload a PDF file.' 
+          });
+        }
+
+        try {
+          // Read file into buffer
+          const fileBuffer = fs.readFileSync(uploadedFile.filepath);
+          
+          // Parse PDF from buffer
+          const result = await parsePdfReportFromBuffer(fileBuffer);
+
+          // Clean up temp file
+          try {
+            fs.unlinkSync(uploadedFile.filepath);
+            // Try to remove temp directory
+            fs.rmdirSync(tempDir, { force: true });
+          } catch (e) {
+            console.error('Cleanup error:', e);
+          }
+
+          res.status(200).json(result);
+        } catch (parseError) {
+          console.error('PDF parse error:', parseError);
+          try {
+            fs.unlinkSync(uploadedFile.filepath);
+          } catch (e) {
+            console.error('Error deleting file:', e);
+          }
+          res.status(500).json({ 
+            success: false,
+            error: 'Failed to parse PDF',
+            message: parseError.message 
+          });
+        }
+      } catch (innerError) {
+        console.error('Inner error:', innerError);
+        if (uploadedFile?.filepath) {
+          try {
+            fs.unlinkSync(uploadedFile.filepath);
+          } catch (e) {
+            console.error('Error deleting file:', e);
+          }
+        }
         res.status(500).json({ 
           success: false,
-          error: 'Failed to parse PDF',
-          message: parseError.message 
+          error: 'Processing error',
+          message: innerError.message 
         });
       }
     });
