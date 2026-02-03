@@ -1,0 +1,22 @@
+{
+  "name": "murukulu-dashboard",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "^14.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "pdf-parse": "^1.1.1",
+    "formidable": "^3.5.1",
+    "xlsx": "^0.18.5",
+    "recharts": "^2.10.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.50.0",
+    "eslint-config-next": "^14.0.0"
+  }
+}
