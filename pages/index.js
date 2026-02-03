@@ -171,7 +171,7 @@ export default function Home() {
           </div>
 
           <div className={styles.sectorsSection}>
-            <h2>Sector Breakdown</h2>
+            <h2>📌 Sector-wise Summary</h2>
             <div className={styles.sectorsList}>
               {data.sectors.map((sector, index) => (
                 <div key={index} className={styles.sectorCard}>
@@ -181,22 +181,23 @@ export default function Home() {
                   >
                     <div className={styles.sectorTitle}>
                       <span className={styles.expandIcon}>
-                        {expandedSectors[sector.sectorName] ? '▼' : '▶'}
+                        {expandedSectors[sector.sectorName] ? '📂' : '📁'}
                       </span>
                       <strong>{sector.sectorName}</strong>
                     </div>
                     <div className={styles.sectorStats}>
                       <span className={styles.stat}>
-                        M: <strong>{sector.totalMurukulu}</strong>
+                        🏪 Murukulu: <strong>{sector.totalMurukulu}</strong>
                       </span>
                       <span className={styles.stat}>
-                        B: <strong>{sector.totalBalamrutham}</strong>
+                        🍚 Balamrutham: <strong>{sector.totalBalamrutham}</strong>
                       </span>
                     </div>
                   </div>
 
                   {expandedSectors[sector.sectorName] && (
                     <div className={styles.sectorDetails}>
+                      <p className={styles.detailsTitle}>AWC Wise Breakdown</p>
                       <table className={styles.detailsTable}>
                         <thead>
                           <tr>

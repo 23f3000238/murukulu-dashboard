@@ -242,6 +242,18 @@
   animation: expandDown 0.3s ease;
 }
 
+.detailsTitle {
+  padding: 15px 20px 10px 20px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #666;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 @keyframes expandDown {
   from {
     opacity: 0;
