@@ -55,49 +55,61 @@ async function processPdfText(text) {
     const sectorData = {};
     const allRows = [];
 
-    // First, try to parse as columnar format (one field per line - typical of many PDFs)
-    let columnarData = parseColumnarFormat(lines);
+    // Try to parse as sector-summary format (most common in these reports)
+    let summaryData = parseSectorSummaryFormat(lines);
     
-    if (columnarData && columnarData.length > 0) {
-      // Use columnar format data
-      for (const rowData of columnarData) {
-        if (rowData && validateRow(rowData)) {
-          allRows.push(rowData);
-
-          // Group by sector
-          const sector = rowData.sectorName;
-          if (!sectorData[sector]) {
-            sectorData[sector] = {
-              sectorName: sector,
-              totalMurukulu: 0,
-              totalBalamrutham: 0,
-              awcBreakdown: []
-            };
-          }
-
-          sectorData[sector].awcBreakdown.push({
-            awcName: rowData.awcName,
-            murukulu: rowData.murukulu,
-            balamrutham: rowData.balamrutham
-          });
-
-          sectorData[sector].totalMurukulu += rowData.murukulu;
-          sectorData[sector].totalBalamrutham += rowData.balamrutham;
+    if (summaryData && summaryData.length > 0) {
+      // Use sector summary format data
+      for (const sector of summaryData) {
+        if (sector && sector.sectorName) {
+          sectorData[sector.sectorName] = sector;
+          allRows.push(sector);
         }
       }
     } else {
-      // Fallback: try line-by-line parsing for tabular formats
-      for (const line of lines) {
-        // Skip header/metadata lines
-        if (isHeaderLine(line)) continue;
+      // Next try columnar format (one field per line)
+      let columnarData = parseColumnarFormat(lines);
+      
+      if (columnarData && columnarData.length > 0) {
+        // Use columnar format data
+        for (const rowData of columnarData) {
+          if (rowData && validateRow(rowData)) {
+            allRows.push(rowData);
 
-        // Try multiple parsing strategies
-        let rowData = parseDataRow(line);
-        if (!rowData) rowData = parseAlternativeFormat(line);
-        if (!rowData) rowData = parseTabSeparated(line);
+            // Group by sector
+            const sector = rowData.sectorName;
+            if (!sectorData[sector]) {
+              sectorData[sector] = {
+                sectorName: sector,
+                totalMurukulu: 0,
+                totalBalamrutham: 0,
+                awcBreakdown: []
+              };
+            }
 
-        if (rowData && validateRow(rowData)) {
-          allRows.push(rowData);
+            sectorData[sector].awcBreakdown.push({
+              awcName: rowData.awcName,
+              murukulu: rowData.murukulu,
+              balamrutham: rowData.balamrutham
+            });
+
+            sectorData[sector].totalMurukulu += rowData.murukulu;
+            sectorData[sector].totalBalamrutham += rowData.balamrutham;
+          }
+        }
+      } else {
+        // Fallback: try line-by-line parsing for tabular formats
+        for (const line of lines) {
+          // Skip header/metadata lines
+          if (isHeaderLine(line)) continue;
+
+          // Try multiple parsing strategies
+          let rowData = parseDataRow(line);
+          if (!rowData) rowData = parseAlternativeFormat(line);
+          if (!rowData) rowData = parseTabSeparated(line);
+
+          if (rowData && validateRow(rowData)) {
+            allRows.push(rowData);
 
           // Group by sector
           const sector = rowData.sectorName;
@@ -152,6 +164,40 @@ async function processPdfText(text) {
       grandTotals: { totalMurukulu: 0, totalBalamrutham: 0, totalItems: 0 }
     };
   }
+}
+
+/**
+ * Parse sector summary format (Sector Code - Name | Murukulu Total | Balamrutham Total)
+ * Example: "310501 - BONAKAL 1         | 65.000         | 950.000"
+ * This is the main aggregated view format
+ */
+function parseSectorSummaryFormat(lines) {
+  const sectors = [];
+  
+  for (const line of lines) {
+    // Look for lines with sector code pattern (310501 - SECTOR NAME | number | number)
+    // Must have format: digits - text | numbers | numbers
+    const match = line.match(/^(\d+)\s*-\s*(.+?)\s*\|\s*([\d.]+)\s*\|\s*([\d.]+)\s*$/);
+    
+    if (match) {
+      const sectorCode = match[1];
+      const sectorName = match[2].trim();
+      const murukulu = parseFloat(match[3]);
+      const balamrutham = parseFloat(match[4]);
+      
+      // Validate the parsed values
+      if (!isNaN(murukulu) && !isNaN(balamrutham) && murukulu >= 0 && balamrutham >= 0) {
+        sectors.push({
+          sectorName: `${sectorCode} - ${sectorName}`,
+          totalMurukulu: murukulu,
+          totalBalamrutham: balamrutham,
+          awcBreakdown: []  // Sector summaries don't have AWC breakdown
+        });
+      }
+    }
+  }
+  
+  return sectors.length > 0 ? sectors : null;
 }
 
 function isHeaderLine(line) {
