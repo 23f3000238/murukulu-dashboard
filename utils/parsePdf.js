@@ -195,10 +195,7 @@ function isHeaderLine(line) {
  */
 function parseColumnarFormat(lines) {
   const records = [];
-  
-  // Look for numeric patterns that indicate data rows
   let recordBuffer = [];
-  let skipUntilValidDate = true;
   
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -206,43 +203,33 @@ function parseColumnarFormat(lines) {
     // Skip obvious headers/metadata
     if (isHeaderLine(line)) continue;
     
-    // Skip lines that are column headers in columnar format (Month, District, ProjectCode, etc.)
+    // Skip column header labels
     if (line.match(/^(Month|District|Project|Sector|AWC|Indent|Code|Name|Year|DistrictCode|DistrictName|ProjectCode|ProjectName|Sector Code|SectorCode|SectorName|AWC Code|AWC Name|MurukuluIndent|Balamrutham Indent)/i)) {
       if (recordBuffer.length > 0 && recordBuffer.length < 11) {
-        recordBuffer = []; // Reset if we hit a header mid-record
-      }
-      skipUntilValidDate = true; // Next valid date marks start of real data
-      continue;
-    }
-    
-    // Skip AWC codes (numeric 7-digit values that appear as first field of some records)
-    // These are not real data rows
-    if (recordBuffer.length === 0 && line.match(/^\d{7}$/)) {
-      continue;
-    }
-    
-    // Look for lines that match the date pattern (MM/YYYY) to start collecting records
-    if (line.match(/^\d{2}\/\d{4}$/)) {
-      skipUntilValidDate = false;
-    }
-    
-    if (skipUntilValidDate && line.match(/^\d{2}\/\d{4}$/)) {
-      skipUntilValidDate = false;
-      recordBuffer = [line]; // Start new record with date
-      continue;
-    }
-    
-    if (!skipUntilValidDate) {
-      recordBuffer.push(line);
-      
-      // When we have 11 fields, try to parse as a record
-      if (recordBuffer.length === 11) {
-        const record = parseColumnarRecord(recordBuffer);
-        if (record) {
-          records.push(record);
-        }
+        // Hit a header before completing 11 fields - discard buffer
         recordBuffer = [];
       }
+      continue;
+    }
+    
+    // Add line to buffer
+    recordBuffer.push(line);
+    
+    // When we have 11 fields, try to parse as a record
+    if (recordBuffer.length === 11) {
+      const record = parseColumnarRecord(recordBuffer);
+      if (record) {
+        records.push(record);
+      }
+      recordBuffer = [];
+    }
+  }
+  
+  // Handle any remaining partial record (in case there are trailing lines)
+  if (recordBuffer.length === 11) {
+    const record = parseColumnarRecord(recordBuffer);
+    if (record) {
+      records.push(record);
     }
   }
   
@@ -261,8 +248,9 @@ function parseColumnarRecord(fields) {
   const murukulu = parseFloat(fields[9]);    // Murukulu
   const balamrutham = parseFloat(fields[10]); // Balamrutham
   
-  // Validate
-  if (!sectorName || sectorName.length < 2 || !awcName || awcName.length < 2) return null;
+  // Validate - allow 0 values, just need non-NaN and >= 0
+  if (!sectorName || sectorName.trim().length === 0) return null;
+  if (!awcName || awcName.trim().length === 0) return null;
   if (isNaN(murukulu) || isNaN(balamrutham) || murukulu < 0 || balamrutham < 0) return null;
   
   return {
@@ -389,8 +377,8 @@ function validateRow(row) {
   return (
     row.sectorName &&
     row.awcName &&
-    row.sectorName.length >= 2 &&
-    row.awcName.length >= 2 &&
+    row.sectorName.trim().length > 0 &&
+    row.awcName.trim().length > 0 &&
     row.murukulu >= 0 &&
     row.balamrutham >= 0 &&
     !isNaN(row.murukulu) &&
