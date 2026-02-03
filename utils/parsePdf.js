@@ -7,7 +7,7 @@ const fs = require('fs');
 async function parsePdfReportFromBuffer(dataBuffer) {
   try {
     const data = await pdfParse(dataBuffer);
-    return processPdfText(data.text);
+    return await processPdfText(data.text);
   } catch (error) {
     console.error('PDF Parsing Error:', error);
     return {
@@ -43,7 +43,7 @@ async function parsePdfReport(filePath) {
 /**
  * Process extracted PDF text and return structured data
  */
-function processPdfText(text) {
+async function processPdfText(text) {
   try {
     // Split into lines and clean
     const lines = text
