@@ -16,12 +16,13 @@ export default function Home() {
     setError(null);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-
+      // Send raw file bytes (application/pdf) to avoid multipart parsers in serverless
       const response = await fetch('/api/upload', {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': file.type || 'application/pdf'
+        },
+        body: file,
       });
 
       if (!response.ok) {
